@@ -1,5 +1,6 @@
 import igraph as ig
 import random
+from time import time
 
 overlaps = lambda m1, d1, m2, d2: abs(m1-m2) < d1+d2
 
@@ -37,31 +38,11 @@ def splitGraphIntoComponents(g):
     cc = g.biconnected_components()
     return [cc.subgraph(i) for i in range(len(cc))]
 
-def colorGraph(g):
-    n = g.vcount()
-    al = g.get_adjlist()
-    g.vs['color'] = [None]*n
-    for i in range(n):
-        s = 0
-        vi = g.vs[i]
-        mi, di = vi['interval']
-        for j in range(n):
-            mj, dj = g.vs[j]['interval']
-            s += float(abs(mi-mj))/(di+dj)
-        vi['sum'] = s
-    ordered_vertices = [
-        x[1] for x in sorted(
-            [
-                (s, i) for i, s in enumerate(g.vs['sum'])
-            ],
-            ##reverse=True,
-        )
-    ]
-    ##random.shuffle(ordered_vertices)
-    #print ordered_vertices
+def colorGraphByOrder(g, ordered_vertices):
+    adjlist = g.get_adjlist()
     for i in ordered_vertices:
         colors = set()
-        for j in al[i]:
+        for j in adjlist[i]:
             c = g.vs[j]['color']
             if c is not None:
                 colors.add(c)
@@ -69,6 +50,58 @@ def colorGraph(g):
         while c in colors:
             c += 1
         g.vs[i]['color'] = c
+
+def colorGraph(g, alg):
+    n = g.vcount()
+    g.vs['color'] = [None]*n
+    if alg=='compact':
+        for i in range(n):
+            s = 0
+            vi = g.vs[i]
+            mi, di = vi['interval']
+            for j in range(n):
+                mj, dj = g.vs[j]['interval']
+                s += float(abs(mi-mj))/(di+dj)
+            vi['compact'] = s
+        ordered_vertices = [
+            x[1] for x in sorted(
+                [
+                    (g.vs['compact'][i], i) for i in range(n)
+                ],
+            )
+        ]
+    elif alg=='degree_compact':
+        for i in range(n):
+            s = 0
+            vi = g.vs[i]
+            mi, di = vi['interval']
+            for j in range(n):
+                mj, dj = g.vs[j]['interval']
+                s += float(abs(mi-mj))/(di+dj)
+            vi['compact'] = s
+        ordered_vertices = [
+            x[2] for x in sorted(
+                [
+                    (-g.indegree(i), g.vs['compact'][i], i) for i in range(n)
+                ],
+            )
+        ]
+    elif alg=='degree':
+        ordered_vertices = [
+            x[1] for x in sorted(
+                [
+                    (-g.indegree(i), i) for i in range(n)
+                ],
+            )
+        ]
+    elif alg=='random':
+        ordered_vertices = range(n)
+        random.shuffle(ordered_vertices)
+    else:
+        raise ValueError(alg)
+    ##
+    #print ordered_vertices
+    colorGraphByOrder(g, ordered_vertices)
 
 def testComponentCount():
     n = 20
@@ -93,25 +126,39 @@ def testComponentCount():
     print 'average number of components: %.1f'%(float(compN_sum)/triesN)
 
 def testColoring():
-    n = 200
+    ## degree is faster than compact and degree_compact, much faster than random
+    #alg = 'random'
+    alg = 'degree' ## [color:degree + split] is faster than [split + color:degree]
+    #alg = 'compact' ## [color:compact] is slower than [split + color:compact]
+    #alg = 'degree_compact'
+    do_split = 0
+    repeat = 10000
+    n = 40
     m_sigma = 100.0
     d_mean = m_sigma * 3.0 / n
     d_sigma = d_mean * 0.5
     ###
-    intervals = makeNormalRandomIntervals(n, m_sigma=m_sigma, d_mean=d_mean, d_sigma=d_sigma)
-    ###
-    graphs = splitGraphIntoComponents(
-        makeIntervalGraph(intervals)
-    )
-    print '%s vertices'%n
-    print '%s edges'%sum([g.ecount() for g in graphs])
-    print '%s components'%len(graphs)
-    for i, graph in enumerate(graphs):
-        colorGraph(graph)
-    colors_count = max([
-        max(g.vs['color']) for g in graphs
-    ]) + 1
-    print '%s colors'%colors_count
+    t0 = time()
+    sumMaxColor = 0.0
+    for i in range(repeat):
+        intervals = makeNormalRandomIntervals(n, m_sigma=m_sigma, d_mean=d_mean, d_sigma=d_sigma)
+        graph = makeIntervalGraph(intervals)
+        ###
+        if do_split:
+            maxStepColor = 0
+            for graph in splitGraphIntoComponents(graph):
+                colorGraph(graph, alg)
+                maxStepColor = max([maxStepColor] + graph.vs['color'])
+            sumMaxColor += maxStepColor
+        else:
+            colorGraph(graph, alg)
+            sumMaxColor += max(graph.vs['color'])
+            splitGraphIntoComponents(graph)
+    dt = time() - t0
+    print 'algorithm: %s'%alg
+    print '  total coloring time: %.1f'%dt
+    print 'average coloring time: %e'%(dt/repeat)
+    print 'average colors count: %s'%(float(sumMaxColor)/repeat + 1)
 
 
 
