@@ -23,7 +23,6 @@ def makeIntervalGraph(intervals):
     g.add_vertices(n-1)
     g.vs['name'] = range(n)
     g.vs['interval'] = intervals
-    #g.add_edges([(i, i) for i in range(n)])
     for i in range(1, n):
         mi, di = intervals[i]
         for j in range(i):
@@ -89,10 +88,9 @@ def colorGraph(g, alg):
     n = g.vcount()
     adjlist = g.get_adjlist()
     g.vs['color'] = [None]*n
-    ordered_vertices = range(n)
-    random.shuffle(ordered_vertices)
     if alg=='random':
-        pass
+        ordered_vertices = range(n)
+        random.shuffle(ordered_vertices)
     elif alg=='degree':
         ordered_vertices = [
             x[1] for x in sorted(
@@ -227,13 +225,13 @@ def drawComponents():
         )
 
 
-def testColoring():
+def testColoring(showStat=False, doDraw=True):
     ## degree is the best so far
     ## sumdegree takes twice the time (than degree) for only 0.5% smaller colors count
     ## degree take 10% or 20% more time than random, for 4.7% smaller colors count
     ## -degree is even worst than random, by 7.9% bigger colors count
     algList = [
-        'random',
+        #'random',
         'degree', ## [color:degree + split] is faster than [split + color:degree]
         #'-degree',
         #'sumdegree',
@@ -241,10 +239,10 @@ def testColoring():
         #'degree_compact',
     ]
     do_split = 0
-    repeat = 5000
-    n = 50
+    repeat = 5
+    n = 9
     m_sigma = 100.0
-    d_mean = m_sigma * 4.0 / n
+    d_mean = m_sigma * 2.0 / n
     d_sigma = d_mean * 0.7
     ###
     data = dict([
@@ -252,11 +250,11 @@ def testColoring():
             'sumMaxColor': 0,
         }) for alg in algList
     ])
-    for i in range(repeat):
+    for stepI in range(repeat):
         intervals = makeNormalRandomIntervals(n, m_sigma=m_sigma, d_mean=d_mean, d_sigma=d_sigma)
         graph = makeIntervalGraph(intervals)
         ###
-        for i, alg in enumerate(algList):
+        for algI, alg in enumerate(algList):
             data[alg]['time'] = time()
             if do_split:
                 maxStepColor = 0
@@ -266,34 +264,64 @@ def testColoring():
                 data[alg]['sumMaxColor'] += maxStepColor
             else:
                 colorGraph(graph, alg)
-                data[alg]['sumMaxColor'] += max(graph.vs['color'])
+                maxStepColor = max(graph.vs['color'])
+                data[alg]['sumMaxColor'] += maxStepColor
                 #graph.decompose()
             data[alg]['time'] = time() - data[alg]['time']
-    alg0 = algList[0]
-    for alg in algList:
-        print 'algorithm: %s'%alg
-        ###
-        timeStr = '%.2e'%(data[alg]['time']/repeat)
-        if alg != alg0:
-            percent = int((data[alg]['time']/data[alg0]['time'] - 1) * 100)
-            timeStr += ' (' + ('+' if percent > 0 else '-')  + '%d%%)'%abs(percent)
-        ###
-        print 'average coloring time: %s'%timeStr
-        color = float(data[alg]['sumMaxColor'])/repeat + 1
-        colorStr = '%.2f'%color
-        if alg != alg0:
-            color0 = float(data[alg0]['sumMaxColor'])/repeat + 1
-            #print color, color0, color/color0
-            percent = abs((color/color0 - 1) * 100.0)
-            colorStr += ' (' + ('+' if color >= color0 else '-')  + '%.1f%%)'%abs(percent)
-        print 'average colors count:  %s'%colorStr
-        print '---------------------------'
+            ###
+            if doDraw:
+                if graph.vcount() > 1:
+                    hcolors = []
+                    for v in graph.vs:
+                        hcolors.append(rgbToHtmlColor(*hslToRgb(
+                            360.0 * v['color'] / (maxStepColor + 1),
+                            1.0,
+                            0.5,
+                        )))
+                    graph.write_svg(
+                        'graph-%s.svg'%stepI,
+                        'circle',
+                        ## fruchterman_reingold
+                        ## grid_fruchterman_reingold
+                        ## graphopt
+                        ## circle
+                        ## sphere
+                        ## reingold_tilford_circular
+                        ## kamada_kawai
+                        ## lgl
+                        colors=hcolors,
+                        labels='color',
+                    )
+            ###
+    
+    if showStat:
+        alg0 = algList[0]
+        for alg in algList:
+            print 'algorithm: %s'%alg
+            ###
+            timeStr = '%.2e'%(data[alg]['time']/repeat)
+            if alg != alg0:
+                percent = int((data[alg]['time']/data[alg0]['time'] - 1) * 100)
+                timeStr += ' (' + ('+' if percent > 0 else '-')  + '%d%%)'%abs(percent)
+            ###
+            print 'average coloring time: %s'%timeStr
+            color = float(data[alg]['sumMaxColor'])/repeat + 1
+            colorStr = '%.2f'%color
+            if alg != alg0:
+                color0 = float(data[alg0]['sumMaxColor'])/repeat + 1
+                #print color, color0, color/color0
+                percent = abs((color/color0 - 1) * 100.0)
+                colorStr += ' (' + ('+' if color >= color0 else '-')  + '%.1f%%)'%abs(percent)
+            print 'average colors count:  %s'%colorStr
+            print '---------------------------'
 
+
+        
 
 
 
 if __name__=='__main__':
     #testComponents()
-    drawComponents()
-    #testColoring()
+    #drawComponents()
+    testColoring()
 
