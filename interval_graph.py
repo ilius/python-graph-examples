@@ -35,29 +35,14 @@ def makeIntervalGraph(intervals):
                 ])
     return g
 
-def getComponentSubgraphs(g):
-    components, articulation_points = g.biconnected_components(True)
-    subgraphs = [components.subgraph(i) for i in range(len(components))]
-    for v in g.vs.select(_degree=0):
-        sg = ig.Graph()
-        sgv = sg.vs[0]
-        for key, value in v.attributes().items():
-            sgv[key] = value
-        subgraphs.append(sg)
-    return subgraphs
-
-
 def assignComponents(g):
-    components, articulation_points = g.biconnected_components(True)
     g.vs['component'] = [None]*g.vcount()
-    for compI, comp in enumerate(components):
-        for verI in comp:
-            g.vs[verI]['component'] = compI
-    compN = len(components)
-    for v in g.vs.select(_degree=0):
-        v['component'] = compN
-        compN += 1
-    return compN
+    subgraphs = g.decompose()
+    for compI, sg in enumerate(subgraphs):
+        for v in sg.vs:
+            origV = g.vs[v['name']]
+            origV['component'] = compI
+    return len(subgraphs)
 
 
 def hslToRgb(h, s, l):
@@ -194,14 +179,14 @@ def testComponents():
         )
         ###
         graph = makeIntervalGraph(intervals)
-        c_graphs = getComponentSubgraphs(graph)
+        c_graphs = graph.decompose()
         compN_sum += len(c_graphs)
     print 'average number of components: %.1f'%(float(compN_sum)/triesN)
 
 def drawComponents():
     n = 16
     m_sigma = 100.0
-    d_mean = m_sigma * 1.0 / n
+    d_mean = m_sigma * 2.0 / n
     d_sigma = d_mean * 0.5
     ###
     triesN = 1
@@ -216,23 +201,28 @@ def drawComponents():
         ###
         graph = makeIntervalGraph(intervals)
         ###
-        subgraphs = getComponentSubgraphs(graph)
-        compN = len(subgraphs)
+        compN = assignComponents(graph)
         ###
-        defaultColor = rgbToHtmlColor(100, 100, 100)
-        colors = [defaultColor for i in range(graph.vcount())]
-        for i, subg in enumerate(subgraphs):
+        colors = []
+        for v in graph.vs:
+            i = v['component']
             color = rgbToHtmlColor(*hslToRgb(
                 360.0 * i / compN,
                 1.0,
                 0.5,
             ))
-            for v in subg.vs:
-                colors[v['name']] = color
+            colors.append(color)
         graph.write_svg(
             'graph-%s.svg'%I,
-            'circle',
-            #colors='color',
+            'fruchterman_reingold',
+            ## fruchterman_reingold
+            ## grid_fruchterman_reingold
+            ## graphopt
+            ## circle
+            ## sphere
+            ## reingold_tilford_circular
+            ## kamada_kawai
+            ## lgl
             colors=colors,
         )
 
@@ -270,14 +260,14 @@ def testColoring():
             data[alg]['time'] = time()
             if do_split:
                 maxStepColor = 0
-                for g in getComponentSubgraphs(graph):
+                for g in graph.decompose():
                     colorGraph(g, alg)
                     maxStepColor = max([maxStepColor] + g.vs['color'])
                 data[alg]['sumMaxColor'] += maxStepColor
             else:
                 colorGraph(graph, alg)
                 data[alg]['sumMaxColor'] += max(graph.vs['color'])
-                #getComponentSubgraphs(graph)
+                #graph.decompose()
             data[alg]['time'] = time() - data[alg]['time']
     alg0 = algList[0]
     for alg in algList:
