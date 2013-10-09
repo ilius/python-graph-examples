@@ -94,27 +94,59 @@ def colorGraph(g, alg):
         random.shuffle(ordered_vertices)
     elif alg=='degree':
         ordered_vertices = [
-            x[1] for x in sorted(
+            x[-1] for x in sorted(
+                [
+                    (-g.degree(i), i) for i in range(n)
+                ],
+            )
+        ]
+    elif alg=='indegree':
+        ordered_vertices = [
+            x[-1] for x in sorted(
                 [
                     (-g.indegree(i), i) for i in range(n)
                 ],
             )
         ]
+    elif alg=='outdegree':
+        ordered_vertices = [
+            x[-1] for x in sorted(
+                [
+                    (-g.outdegree(i), i) for i in range(n)
+                ],
+            )
+        ]
+    elif alg=='degree_len':
+        ordered_vertices = [
+            x[-1] for x in sorted(
+                [
+                    (-g.degree(i), -g.vs[i]['interval'][1], i) for i in range(n)
+                ],
+            )
+        ]
+    elif alg=='len':
+        ordered_vertices = [
+            x[-1] for x in sorted(
+                [
+                    (-g.vs[i]['interval'][1], i) for i in range(n)
+                ],
+            )
+        ]
     elif alg=='-degree':
         ordered_vertices = [
-            x[1] for x in sorted(
+            x[-1] for x in sorted(
                 [
-                    (g.indegree(i), i) for i in range(n)
+                    (g.degree(i), i) for i in range(n)
                 ],
             )
         ]
     elif alg=='sumdegree':
         ordered_vertices = [
-            x[1] for x in sorted(
+            x[-1] for x in sorted(
                 [
                     (
                         -sum([
-                            g.indegree(j) for j in adjlist[i]
+                            g.degree(j) for j in adjlist[i]
                         ]),
                         i,
                     )
@@ -132,7 +164,7 @@ def colorGraph(g, alg):
                 s += float(abs(mi-mj))/(di+dj)
             vi['compact'] = s
         ordered_vertices = [
-            x[1] for x in sorted(
+            x[-1] for x in sorted(
                 [
                     (g.vs['compact'][i], i) for i in range(n)
                 ],
@@ -148,9 +180,9 @@ def colorGraph(g, alg):
                 s += float(abs(mi-mj))/(di+dj)
             vi['compact'] = s
         ordered_vertices = [
-            x[2] for x in sorted(
+            x[-1] for x in sorted(
                 [
-                    (-g.indegree(i), g.vs['compact'][i], i) for i in range(n)
+                    (-g.degree(i), g.vs['compact'][i], i) for i in range(n)
                 ],
             )
         ]
@@ -164,10 +196,9 @@ def colorGraphSL(g):
     n = g.vcount()
     adjlist = g.get_adjlist()
     g.vs['color'] = [None]*n
-
     for row in sorted(
         [
-            (-g.indegree(i), i) for i in range(n)
+            (-g.degree(i), i) for i in range(n)
         ],
     ):
         i = row[1]
@@ -249,28 +280,34 @@ def drawComponents():
         )
 
 
-def testColoring(showStat=False, doDraw=True):
+def testColoring(showStat=1, doDraw=0):
     ## degree is the best so far
     ## sumdegree takes twice the time (than degree) for only 0.5% smaller colors count
     ## degree take 10% or 20% more time than random, for 4.7% smaller colors count
     ## -degree is even worst than random, by 7.9% bigger colors count
     algList = [
-        #'random',
-        'degree', ## [color:degree + split] is faster than [split + color:degree]
+        'random',
+        'degree',## 3.0% less colors count
+        ## [color:degree + split] is faster than [split + color:degree]
+        #'indegree',## 7% slower than degree, the same colors count
+        #'outdegree',## 5% slower than degree, the same colors count
         #'-degree',
         #'sumdegree',
         #'compact', ## [color:compact] is slower than [split + color:compact]
         #'degree_compact',
+        #'degree_len',## 9% slower than degree, the same colors count
+        #'len',## 0% to 2% faster than degree, 0.7% to 1.2% more colors count
     ]
     do_split = 0
-    repeat = 5
-    n = 9
-    d_mean = 2.0 / n
+    repeat = 1000
+    n = 20
+    d_mean = 4.0 / n
     d_sigma = d_mean * 0.7
     ###
     data = dict([
         (alg, {
             'sumMaxColor': 0,
+            'sumTime': 0,
         }) for alg in algList
     ])
     for stepI in range(repeat):
@@ -278,7 +315,7 @@ def testColoring(showStat=False, doDraw=True):
         graph = makeIntervalGraph(intervals)
         ###
         for algI, alg in enumerate(algList):
-            data[alg]['time'] = time()
+            t0 = time()
             if do_split:
                 maxStepColor = 0
                 for g in graph.decompose():
@@ -290,7 +327,7 @@ def testColoring(showStat=False, doDraw=True):
                 maxStepColor = max(graph.vs['color'])
                 data[alg]['sumMaxColor'] += maxStepColor
                 #graph.decompose()
-            data[alg]['time'] = time() - data[alg]['time']
+            data[alg]['sumTime'] += (time() - t0)
             ###
             if doDraw:
                 if graph.vcount() > 1:
@@ -322,9 +359,9 @@ def testColoring(showStat=False, doDraw=True):
         for alg in algList:
             print 'algorithm: %s'%alg
             ###
-            timeStr = '%.2e'%(data[alg]['time']/repeat)
+            timeStr = '%.2e'%(data[alg]['sumTime']/repeat)
             if alg != alg0:
-                percent = int((data[alg]['time']/data[alg0]['time'] - 1) * 100)
+                percent = int((data[alg]['sumTime']/data[alg0]['sumTime'] - 1) * 100)
                 timeStr += ' (' + ('+' if percent > 0 else '-')  + '%d%%)'%abs(percent)
             ###
             print 'average coloring time: %s'%timeStr
@@ -340,15 +377,34 @@ def testColoring(showStat=False, doDraw=True):
 
 
 
-def testColoringSL(showStat=True, doDraw=True):
+
+def testGraphCreation(showStat=1, doDraw=0):
     ## the same 'degree' alg
-    do_split = 0
-    repeat = 5
-    n = 9
+    do_split = 1
+    repeat = 10000
+    n = 20
     d_mean = 2.0 / n
-    d_sigma = d_mean * 0.1
+    d_sigma = d_mean * 0.2
+    ###
+    t0 = time()
+    for stepI in range(repeat):
+        intervals = makeNormalRandomIntervals(n, d_mean=d_mean, d_sigma=d_sigma)
+        t0 = time()
+        graph = makeIntervalGraph(intervals)
+        sumTime += (time() - t0)
+    print 'average time: %e'%(sumTime/repeat)
+
+
+def testColoringSL(showStat=True, doDraw=False):
+    ## the same 'degree' alg
+    do_split = 1
+    repeat = 1000
+    n = 20
+    d_mean = 2.0 / n
+    d_sigma = d_mean * 0.2
     ###
     sumMaxColor = 0
+    sumTime = 0
     for stepI in range(repeat):
         intervals = makeNormalRandomIntervals(n, d_mean=d_mean, d_sigma=d_sigma)
         graph = makeIntervalGraph(intervals)
@@ -364,7 +420,7 @@ def testColoringSL(showStat=True, doDraw=True):
             maxStepColor = max(graph.vs['color'])
             #graph.decompose()
         sumMaxColor += maxStepColor
-        dt = time() - t0
+        sumTime += (time() - t0)
         ###
         if doDraw:
             if graph.vcount() > 1:
@@ -390,8 +446,8 @@ def testColoringSL(showStat=True, doDraw=True):
                     labels='color',
                 )
     if showStat:
-        print 'average coloring time: %s'%dt
-        print 'average colors count:  %s'%(sumMaxColor+1)
+        print 'average coloring time: %e'%(sumTime/repeat)
+        print 'average colors count:  %s'%(float(sumMaxColor)/repeat + 1)
 
 
 
@@ -399,5 +455,6 @@ def testColoringSL(showStat=True, doDraw=True):
 if __name__=='__main__':
     #testComponents()
     #drawComponents()
-    testColoringSL()
+    testColoring()
+    #testColoringSL()
 
