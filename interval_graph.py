@@ -352,8 +352,6 @@ def testColoring(showStat=1, doDraw=0):
                         colors=hcolors,
                         labels='color',
                     )
-            ###
-    
     if showStat:
         alg0 = algList[0]
         for alg in algList:
@@ -378,15 +376,14 @@ def testColoring(showStat=1, doDraw=0):
 
 
 
-def testGraphCreation(showStat=1, doDraw=0):
-    ## the same 'degree' alg
+def testGraphCreation():
     do_split = 1
-    repeat = 10000
+    repeat = 1000
     n = 20
     d_mean = 2.0 / n
     d_sigma = d_mean * 0.2
     ###
-    t0 = time()
+    sumTime = 0
     for stepI in range(repeat):
         intervals = makeNormalRandomIntervals(n, d_mean=d_mean, d_sigma=d_sigma)
         t0 = time()
@@ -395,7 +392,7 @@ def testGraphCreation(showStat=1, doDraw=0):
     print 'average time: %e'%(sumTime/repeat)
 
 
-def testColoringSL(showStat=True, doDraw=False):
+def testColoringSL(showStat=1, doDraw=0):
     ## the same 'degree' alg
     do_split = 1
     repeat = 1000
@@ -453,8 +450,9 @@ def testColoringSL(showStat=True, doDraw=False):
 
 
 if __name__=='__main__':
+    testGraphCreation()
     #testComponents()
     #drawComponents()
-    testColoring()
+    #testColoring()
     #testColoringSL()
 
