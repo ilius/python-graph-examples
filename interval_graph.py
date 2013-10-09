@@ -1,11 +1,12 @@
 import igraph as ig
 import random
 from time import time
+from pprint import pprint
 
 overlaps = lambda m1, d1, m2, d2: abs(m1-m2) < d1+d2
 
 
-def makeNormalRandomIntervals(n, m_mean=0, m_sigma=50, d_mean=20, d_sigma=10):
+def makeNormalRandomIntervals(n, m_mean=0, m_sigma=1.0, d_mean=0.1, d_sigma=0.01):
     l = []
     for i in range(n):
         m = random.normalvariate(m_mean, m_sigma)
@@ -30,7 +31,6 @@ def makeIntervalGraph(intervals):
             if overlaps(mi, di, mj, dj):
                 g.add_edges([
                     (i, j),
-                    (j, i),
                 ])
     return g
 
@@ -83,6 +83,7 @@ def colorGraphByOrder(g, ordered_vertices, adjlist):
         while c in colors:
             c += 1
         g.vs[i]['color'] = c
+
 
 def colorGraph(g, alg):
     n = g.vcount()
@@ -159,32 +160,32 @@ def colorGraph(g, alg):
     #print ordered_vertices
     colorGraphByOrder(g, ordered_vertices, adjlist)
 
+def colorGraphSL(g):
+    n = g.vcount()
+    adjlist = g.get_adjlist()
+    g.vs['color'] = [None]*n
+
+    for row in sorted(
+        [
+            (-g.indegree(i), i) for i in range(n)
+        ],
+    ):
+        i = row[1]
+        colors = set()
+        for j in adjlist[i]:
+            c = g.vs[j]['color']
+            if c is not None:
+                colors.add(c)
+        c = 0
+        while c in colors:
+            c += 1
+        g.vs[i]['color'] = c
+
+
 
 def testComponents():
-    n = 50
-    m_sigma = 100.0
-    d_mean = m_sigma * 1.0 / n
-    d_sigma = d_mean * 0.5
-    ###
-    triesN = 5
-    compN_sum = 0
-    for I in range(triesN):
-        intervals = makeNormalRandomIntervals(
-            n,
-            m_sigma=m_sigma,
-            d_mean=d_mean,
-            d_sigma=d_sigma,
-        )
-        ###
-        graph = makeIntervalGraph(intervals)
-        c_graphs = graph.decompose()
-        compN_sum += len(c_graphs)
-    print 'average number of components: %.1f'%(float(compN_sum)/triesN)
-
-def drawComponents():
-    n = 16
-    m_sigma = 100.0
-    d_mean = m_sigma * 2.0 / n
+    n = 12
+    d_mean = 2.0 / n
     d_sigma = d_mean * 0.5
     ###
     triesN = 1
@@ -192,7 +193,30 @@ def drawComponents():
     for I in range(triesN):
         intervals = makeNormalRandomIntervals(
             n,
-            m_sigma=m_sigma,
+            d_mean=d_mean,
+            d_sigma=d_sigma,
+        )
+        ###
+        graph = makeIntervalGraph(intervals)
+        print '\n'.join([
+            ''.join(
+                [str(x) for x in row]
+            ) for row in graph.get_adjacency()
+        ])
+        c_graphs = graph.decompose()
+        compN_sum += len(c_graphs)
+    print 'average number of components: %.1f'%(float(compN_sum)/triesN)
+
+def drawComponents():
+    n = 16
+    d_mean = 2.0 / n
+    d_sigma = d_mean * 0.5
+    ###
+    triesN = 1
+    compN_sum = 0
+    for I in range(triesN):
+        intervals = makeNormalRandomIntervals(
+            n,
             d_mean=d_mean,
             d_sigma=d_sigma,
         )
@@ -241,8 +265,7 @@ def testColoring(showStat=False, doDraw=True):
     do_split = 0
     repeat = 5
     n = 9
-    m_sigma = 100.0
-    d_mean = m_sigma * 2.0 / n
+    d_mean = 2.0 / n
     d_sigma = d_mean * 0.7
     ###
     data = dict([
@@ -251,7 +274,7 @@ def testColoring(showStat=False, doDraw=True):
         }) for alg in algList
     ])
     for stepI in range(repeat):
-        intervals = makeNormalRandomIntervals(n, m_sigma=m_sigma, d_mean=d_mean, d_sigma=d_sigma)
+        intervals = makeNormalRandomIntervals(n, d_mean=d_mean, d_sigma=d_sigma)
         graph = makeIntervalGraph(intervals)
         ###
         for algI, alg in enumerate(algList):
@@ -316,12 +339,65 @@ def testColoring(showStat=False, doDraw=True):
             print '---------------------------'
 
 
-        
+
+def testColoringSL(showStat=True, doDraw=True):
+    ## the same 'degree' alg
+    do_split = 0
+    repeat = 5
+    n = 9
+    d_mean = 2.0 / n
+    d_sigma = d_mean * 0.1
+    ###
+    sumMaxColor = 0
+    for stepI in range(repeat):
+        intervals = makeNormalRandomIntervals(n, d_mean=d_mean, d_sigma=d_sigma)
+        graph = makeIntervalGraph(intervals)
+        ###
+        t0 = time()
+        if do_split:
+            maxStepColor = 0
+            for g in graph.decompose():
+                colorGraphSL(g)
+                maxStepColor = max([maxStepColor] + g.vs['color'])
+        else:
+            colorGraphSL(graph)
+            maxStepColor = max(graph.vs['color'])
+            #graph.decompose()
+        sumMaxColor += maxStepColor
+        dt = time() - t0
+        ###
+        if doDraw:
+            if graph.vcount() > 1:
+                hcolors = []
+                for v in graph.vs:
+                    hcolors.append(rgbToHtmlColor(*hslToRgb(
+                        360.0 * v['color'] / (maxStepColor + 1),
+                        1.0,
+                        0.5,
+                    )))
+                graph.write_svg(
+                    'graph-%s.svg'%stepI,
+                    'circle',
+                    ## fruchterman_reingold
+                    ## grid_fruchterman_reingold
+                    ## graphopt
+                    ## circle
+                    ## sphere
+                    ## reingold_tilford_circular
+                    ## kamada_kawai
+                    ## lgl
+                    colors=hcolors,
+                    labels='color',
+                )
+    if showStat:
+        print 'average coloring time: %s'%dt
+        print 'average colors count:  %s'%(sumMaxColor+1)
+
 
 
 
 if __name__=='__main__':
     #testComponents()
     #drawComponents()
-    testColoring()
+    testColoringSL()
 
