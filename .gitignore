@@ -1,0 +1,4 @@
+*.svg
+*.pyc
+*.pyo
+.ruff_cache
