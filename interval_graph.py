@@ -270,7 +270,7 @@ def drawComponents():
 			)
 			colors.append(color)
 		graph.write_svg(
-			f"graph-{index}.svg",
+			f"graph-components-{index}.svg",
 			"fruchterman_reingold",
 			# fruchterman_reingold
 			# grid_fruchterman_reingold
@@ -284,7 +284,7 @@ def drawComponents():
 		)
 
 
-def testColoring(showStat=1, doDraw=0):
+def testColoring(showStat=1, doDraw=False):
 	# degree is the best so far
 	# sumdegree takes twice the time (than degree) for only 0.5% smaller colors count
 	# degree take 10% or 20% more time than random, for 4.7% smaller colors count
@@ -346,7 +346,7 @@ def testColoring(showStat=1, doDraw=0):
                     for v in graph.vs
                 ]
 				graph.write_svg(
-					f"graph-{stepI}.svg",
+					f"graph-coloring-{stepI}.svg",
 					"circle",
 					# fruchterman_reingold
 					# grid_fruchterman_reingold
@@ -398,7 +398,7 @@ def testGraphCreation():
 	print(f"average time: {sumTime / repeat:e}")
 
 
-def testColoringSL(showStat=1, doDraw=0):
+def testColoringSL(showStat=1, doDraw=False):
 	# the same 'degree' alg
 	do_split = 1
 	repeat = 1000
@@ -437,7 +437,7 @@ def testColoringSL(showStat=1, doDraw=0):
                 for v in graph.vs
             ]
 			graph.write_svg(
-				f"graph-{stepI}.svg",
+				f"graph-coloring-SL-{stepI}.svg",
 				"circle",
 				# fruchterman_reingold
 				# grid_fruchterman_reingold
@@ -459,5 +459,5 @@ if __name__ == "__main__":
 	testGraphCreation()
 	testComponents()
 	drawComponents()
-	testColoring()
-	testColoringSL()
+	testColoring(doDraw=False)
+	testColoringSL(doDraw=False)
